@@ -22,6 +22,8 @@ function log_callback(type, request, response) {
         post_data = post_data + chunk;
     });
     request.on('end', function(chunk) {
+        post_data = post_data + (chunk || '');
+
         console.log('------------------------------------------------------------------------')
         console.log('-- Callback for %s', type);
         console.log('--');
@@ -61,6 +63,8 @@ function add_webhook(hooks, callback) {
             post_response = post_response + chunk;
         });
         response.on('end', function(chunk) {
+            post_response = post_response + (chunk || '');
+
             console.log("== reponse for request type %s: %s", hooks[0], post_response);
             callback(hooks.slice(1));
         });
@@ -88,6 +92,8 @@ function delete_webhook(hooks, callback) {
             delete_response = delete_response + chunk;
         });
         response.on('end', function(chunk) {
+            delete_response = delete_response + (chunk || '');
+
             console.log("== reponse for request type %s: %s", hooks[0], delete_response);
             callback(hooks.slice(1));
         });

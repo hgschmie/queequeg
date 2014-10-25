@@ -1,6 +1,6 @@
 # QUEEQUEG - A Singularity Web hook debugger
 
-Received Singularity webhook notifications and prints them on the console.
+Receives Singularity webhook notifications and prints them on the console.
 
 ## Setup
 
@@ -10,7 +10,14 @@ make setup
 
 ## Usage
 
-Check the environment variables at the top of the Makefile. Make sure that they match your Singularity installation. Then start the server:
+Check the environment variables at the top of the Makefile. Make sure that they match your Singularity installation.
+
+* PORT - local port on which queequeg will listen (default: 3000).
+* HOST - hostname that queequeg will use (default: localhost).
+* SINGULARITY_PORT - port used for the singularity framework to register callbacks with (default: 7099).
+* SINGULARITY_HOST - hostname used for the singularity framework to register callbacks with (default: localhost).
+
+Then start the server:
 
 ```bash
 make server
