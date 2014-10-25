@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "name": "queequeg",
+  "version": "0.0.1",
+  "description": "Webhook receiver for Singularity",
+  "author": "Henning Schmiedehausen <henning@groupon.com>",
+  "license": "Apache Software License v2.0",
+  "dependencies": {
+    "express": "~4.10.0"
+  },
+  "engines": {
+    "node": ">=0.10"
+  }
+}
