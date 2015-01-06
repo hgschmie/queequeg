@@ -1,26 +1,40 @@
-var express = require('express')
-var http = require('http')
-var util = require('util')
+var express = require('express');
+var http = require('http');
+var async = require('async');
+var Singularity = require('singularity-client');
 
-var app = express()
+var port = process.env.PORT || 3000,
+    host = process.env.HOST || 'localhost',
+    hookPrefix = "/webook",
+    hookBaseUrl = "http://" + host + ":" + port + hookPrefix,
+    singularity_port = process.env.SINGULARITY_PORT || 7099,
+    singularity_host = process.env.SINGULARITY_HOST || host,
+    singularity_base = process.env.SINGULARITY_BASE || '/singularity';
 
-app.post('/webhook/task', function (req, res) {
-    log_callback("TASK", req, res);
-})
+var singularity = new Singularity({
+    singularity: {
+      baseUrl: "http://" + singularity_host + ":" + singularity_port + singularity_base
+    }
+});
 
-app.post('/webhook/deploy', function (req, res) {
-    log_callback("DEPLOY", req, res);
-})
+if (process.env.DEBUG) {
+    ["connect", "success", "failure"].forEach(function(evt) {
+        singularity.hub.on(evt, function(msg) {
+          console.log(evt.toUpperCase(), msg);
+        });
+    });
+}
 
-app.post('/webhook/request', function (req, res) {
-    log_callback("REQUEST", req, res);
-})
+var app = express();
 
-function log_callback(type, request, response) {
-    var post_data = '';
+app.post(hookPrefix + '/:hook', function (req, res) {
+    var type = req.body.hook.toUpperCase(),
+        post_data = '';
+
     request.on('data', function(chunk) {
         post_data = post_data + chunk;
     });
+
     request.on('end', function(chunk) {
         post_data = post_data + (chunk || '');
 
@@ -32,113 +46,41 @@ function log_callback(type, request, response) {
     });
 
     response.statusCode = 200;
-    response.end()
-}
+    response.end();
+});
 
-var port = process.env.PORT || 3000;;
-var host = process.env.HOST || 'localhost';
-var singularity_port = process.env.SINGULARITY_PORT || 7099;
-var singularity_host = process.env.SINGULARITY_HOST || host;
-var singularity_base = process.env.SINGULARITY_BASE || '/singularity/';
+function addWebhook(hook, callback) {
+    console.log("== adding Webhook %s for request type %s", hookBaseUrl + "/" + hook, hook);
 
-function add_webhook(hooks, callback) {
-    var webhook = util.format('http://%s:%s/webhook/%s', host, port, hooks[0]);
-    console.log("== adding Webhook %s for request type %s", webhook, hooks[0]);
-
-    var body = JSON.stringify({'uri': webhook, 'type': hooks[0].toUpperCase() })
-    var post_options =  {
-        host: singularity_host,
-        port : singularity_port,
-        path: singularity_base + 'api/webhooks',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': body.length
-        }
-    };
-
-    var post_req = http.request(post_options, function(response) {
-        var post_response = '';
-        response.setEncoding('utf8');
-        response.on('data', function(chunk) {
-            post_response = post_response + chunk;
-        });
-        response.on('end', function(chunk) {
-            post_response = post_response + (chunk || '');
-
-            console.log("== reponse for request type %s: %s", hooks[0], post_response);
-            callback(hooks.slice(1));
-        });
+    singularity.webhooks.create(hook, hookBaseUrl, function(err, data) {
+        console.log("== reponse for request type %s: %s", hook, data);
+        callback(err);
     });
-
-    post_req.write(body);
-    post_req.end();
 }
 
-function delete_webhook(hooks, callback) {
-    var webhook = util.format('%s-http://%s:%s/webhook/%s', hooks[0].toUpperCase(), host, port, hooks[0])
-    console.log("== removing Webhook %s for request type %s", webhook, hooks[0]);
+function deleteWebhook(hook, callback) {
+    console.log("== removing Webhook %s for request type %s", hookBaseUrl + "/" + hook, hook);
 
-    var delete_options =  {
-        host: singularity_host,
-        port : singularity_port,
-        path: singularity_base + 'api/webhooks/' + encodeURIComponent(webhook),
-        method: 'DELETE'
-    };
-
-    var delete_req = http.request(delete_options, function(response) {
-        var delete_response = '';
-        response.setEncoding('utf8');
-        response.on('data', function(chunk) {
-            delete_response = delete_response + chunk;
-        });
-        response.on('end', function(chunk) {
-            delete_response = delete_response + (chunk || '');
-
-            console.log("== reponse for request type %s: %s", hooks[0], delete_response);
-            callback(hooks.slice(1));
-        });
+    singularity.webhooks.delete(hook, hookBaseUrl, function(err, data) {
+        console.log("== reponse for request type %s: %s", hook, data);
+        callback(null); // always return safely
     });
-
-    delete_req.end();
-}
-
-function add_webhooks(hooks) {
-    var add_callback = function(add_hooks) {
-        if (add_hooks.length > 0) {
-            add_webhook(add_hooks, add_callback);
-        }
-    };
-
-    add_webhook(hooks, add_callback);
-}
-
-function delete_webhooks(hooks, callback) {
-    var del_callback = function(del_hooks) {
-        if (del_hooks.length == 0) {
-            callback();
-        }
-        else {
-            delete_webhook(del_hooks, del_callback);
-        }
-    };
-
-    delete_webhook(hooks, del_callback);
 }
 
 var hooks = [ 'task', 'deploy', 'request' ];
 
 process.on('SIGINT', function() {
-    console.log("");
-    delete_webhooks(hooks,  function() { process.exit() });
+    console.log("CLEANUP");
+    async.each(hooks, deleteWebhook, function() {
+        process.exit();
+    });
 });
 
-var server = app.listen(port, host, function () {
-    console.log('========================================================================');
-    console.log('== QUEEQUEG - Singularity webhook debugger listening at http://%s:%s', server.address().address, server.address().port)
-    console.log('==');
-    console.log('== using singularity at http://%s:%s', singularity_host, singularity_port);
-    add_webhooks(hooks);
-})
-
-
+async.each(hooks, addWebhook, function() {
+    server = app.listen(port, host, function () {
+        console.log('========================================================================');
+        console.log('== QUEEQUEG - Singularity webhook debugger listening at http://%s:%s', server.address().address, server.address().port)
+        console.log('==');
+        console.log('== using singularity at http://%s:%s', singularity_host, singularity_port);
+    });
+});
