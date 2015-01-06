@@ -39,6 +39,7 @@ var port = process.env.PORT || 3000;;
 var host = process.env.HOST || 'localhost';
 var singularity_port = process.env.SINGULARITY_PORT || 7099;
 var singularity_host = process.env.SINGULARITY_HOST || host;
+var singularity_base = process.env.SINGULARITY_BASE || '/singularity/';
 
 function add_webhook(hooks, callback) {
     var webhook = util.format('http://%s:%s/webhook/%s', host, port, hooks[0]);
@@ -48,7 +49,7 @@ function add_webhook(hooks, callback) {
     var post_options =  {
         host: singularity_host,
         port : singularity_port,
-        path: '/singularity/api/webhooks',
+        path: singularity_base + 'api/webhooks',
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -81,7 +82,7 @@ function delete_webhook(hooks, callback) {
     var delete_options =  {
         host: singularity_host,
         port : singularity_port,
-        path: '/singularity/api/webhooks/' + encodeURIComponent(webhook),
+        path: singularity_base + 'api/webhooks/' + encodeURIComponent(webhook),
         method: 'DELETE'
     };
 
