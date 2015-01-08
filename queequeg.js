@@ -1,144 +1,92 @@
-var express = require('express')
-var http = require('http')
-var util = require('util')
+var http = require('http'),
+    util = require('util'),
+    express = require('express'),
+    bodyParser = require('body-parser'),
+    async = require('async'),
+    Singularity = require('singularity-client');
 
-var app = express()
+var port = process.env.PORT || 3000,
+    host = process.env.HOST || 'localhost',
+    serverBaseUrl = util.format("http://%s:%s", host, port),
+    hookPathPrefix = "/webhook",
+    hookBaseUrl = serverBaseUrl + hookPathPrefix,
+    singularityPort = process.env.SINGULARITY_PORT || 7099,
+    singularityHost = process.env.SINGULARITY_HOST || host,
+    singularityBase = process.env.SINGULARITY_BASE || '/singularity',
+    singularityUrl = util.format("http://%s:%s%s", singularityHost, singularityPort, singularityBase);
 
-app.post('/webhook/task', function (req, res) {
-    log_callback("TASK", req, res);
-})
+var singularity = new Singularity({
+    singularity: {
+        baseUrl: singularityUrl,
+        connectTimeout: 5000
+    }
+});
 
-app.post('/webhook/deploy', function (req, res) {
-    log_callback("DEPLOY", req, res);
-})
+if (process.env.DEBUG) {
+    var debugEvents = ["connect", "success", "failure"]
 
-app.post('/webhook/request', function (req, res) {
-    log_callback("REQUEST", req, res);
-})
-
-function log_callback(type, request, response) {
-    var post_data = '';
-    request.on('data', function(chunk) {
-        post_data = post_data + chunk;
-    });
-    request.on('end', function(chunk) {
-        post_data = post_data + (chunk || '');
-
-        console.log('------------------------------------------------------------------------')
-        console.log('-- Callback for %s', type);
-        console.log('--');
-        console.log(JSON.stringify(JSON.parse(post_data), null, 2));
-        console.log('------------------------------------------------------------------------');
-    });
-
-    response.statusCode = 200;
-    response.end()
-}
-
-var port = process.env.PORT || 3000;;
-var host = process.env.HOST || 'localhost';
-var singularity_port = process.env.SINGULARITY_PORT || 7099;
-var singularity_host = process.env.SINGULARITY_HOST || host;
-var singularity_base = process.env.SINGULARITY_BASE || '/singularity/';
-
-function add_webhook(hooks, callback) {
-    var webhook = util.format('http://%s:%s/webhook/%s', host, port, hooks[0]);
-    console.log("== adding Webhook %s for request type %s", webhook, hooks[0]);
-
-    var body = JSON.stringify({'uri': webhook, 'type': hooks[0].toUpperCase() })
-    var post_options =  {
-        host: singularity_host,
-        port : singularity_port,
-        path: singularity_base + 'api/webhooks',
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': body.length
-        }
-    };
-
-    var post_req = http.request(post_options, function(response) {
-        var post_response = '';
-        response.setEncoding('utf8');
-        response.on('data', function(chunk) {
-            post_response = post_response + chunk;
-        });
-        response.on('end', function(chunk) {
-            post_response = post_response + (chunk || '');
-
-            console.log("== reponse for request type %s: %s", hooks[0], post_response);
-            callback(hooks.slice(1));
+    debugEvents.forEach(function(evt) {
+        singularity.hub.on(evt, function(msg) {
+          console.log(evt.toUpperCase(), msg);
         });
     });
-
-    post_req.write(body);
-    post_req.end();
 }
 
-function delete_webhook(hooks, callback) {
-    var webhook = util.format('%s-http://%s:%s/webhook/%s', hooks[0].toUpperCase(), host, port, hooks[0])
-    console.log("== removing Webhook %s for request type %s", webhook, hooks[0]);
+var app = express();
 
-    var delete_options =  {
-        host: singularity_host,
-        port : singularity_port,
-        path: singularity_base + 'api/webhooks/' + encodeURIComponent(webhook),
-        method: 'DELETE'
-    };
+app.use(bodyParser.json());
+app.post(hookPathPrefix + '/:hook', function (req, res) {
+    var type = req.params.hook.toUpperCase();
 
-    var delete_req = http.request(delete_options, function(response) {
-        var delete_response = '';
-        response.setEncoding('utf8');
-        response.on('data', function(chunk) {
-            delete_response = delete_response + chunk;
-        });
-        response.on('end', function(chunk) {
-            delete_response = delete_response + (chunk || '');
+    console.log('------------------------------------------------------------------------')
+    console.log('-- Callback for %s', type);
+    console.log('--');
+    console.log(JSON.stringify(JSON.parse(req.body), null, 2));
+    console.log('------------------------------------------------------------------------');
 
-            console.log("== reponse for request type %s: %s", hooks[0], delete_response);
-            callback(hooks.slice(1));
-        });
+    res.sendStatus(200);
+});
+
+function addWebhook(webhook, callback) {
+    var hookUrl = hookBaseUrl + "/" + webhook;
+    console.log("== adding Webhook %s for request type %s", hookUrl, webhook);
+
+    singularity.webhooks.create(webhook, hookBaseUrl, function(err, data) {
+        console.log("== response for request type %s: %s", webhook, data);
+        callback(err);
     });
-
-    delete_req.end();
 }
 
-function add_webhooks(hooks) {
-    var add_callback = function(add_hooks) {
-        if (add_hooks.length > 0) {
-            add_webhook(add_hooks, add_callback);
-        }
-    };
+function deleteWebhook(webhook, callback) {
+    var hookUrl = hookBaseUrl + "/" + webhook;
+    console.log("== removing Webhook %s for request type %s", hookUrl, webhook);
 
-    add_webhook(hooks, add_callback);
-}
-
-function delete_webhooks(hooks, callback) {
-    var del_callback = function(del_hooks) {
-        if (del_hooks.length == 0) {
-            callback();
-        }
-        else {
-            delete_webhook(del_hooks, del_callback);
-        }
-    };
-
-    delete_webhook(hooks, del_callback);
+    singularity.webhooks.delete(webhook, hookBaseUrl, function(err, data) {
+        console.log("== response for request type %s: %s", webhook, data);
+        callback(null); // always return safely
+    });
 }
 
 var hooks = [ 'task', 'deploy', 'request' ];
 
 process.on('SIGINT', function() {
     console.log("");
-    delete_webhooks(hooks,  function() { process.exit() });
+
+    // unregister hooks with singularity
+    async.each(hooks, deleteWebhook, function() {
+        process.exit();
+    });
 });
 
-var server = app.listen(port, host, function () {
+server = app.listen(port, host, function () {
     console.log('========================================================================');
-    console.log('== QUEEQUEG - Singularity webhook debugger listening at http://%s:%s', server.address().address, server.address().port)
+    console.log('== QUEEQUEG - Singularity webhook debugger listening at %s', serverBaseUrl);
     console.log('==');
-    console.log('== using singularity at http://%s:%s', singularity_host, singularity_port);
-    add_webhooks(hooks);
-})
+    console.log('== using singularity at %s', singularityUrl);
 
-
+    // register hooks with singulariy
+    async.each(hooks, addWebhook, function(err) {
+        if (err) throw err;
+        console.log("== All hooks enabled");
+    });
+});

@@ -6,7 +6,10 @@
   "author": "Henning Schmiedehausen <henning@groupon.com>",
   "license": "Apache Software License v2.0",
   "dependencies": {
-    "express": "~4.10.0"
+    "async": "^0.9.0",
+    "body-parser": "^1.10.1",
+    "express": "~4.10.0",
+    "singularity-client": "0.0.2"
   },
   "engines": {
     "node": ">=0.10"
