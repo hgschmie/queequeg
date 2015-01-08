@@ -18,8 +18,14 @@ var port = process.env.PORT || 3000,
     host = process.env.HOST || 'localhost',
     singularityPort = process.env.SINGULARITY_PORT || 7099,
     singularityHost = process.env.SINGULARITY_HOST || 'localhost',
-    singularityBase = process.env.SINGULARITY_BASE || '',
-    serverBaseUrl = formatUrl(host, port),
+    singularityBase = process.env.SINGULARITY_BASE;
+
+// a blank string represents 'no base path' and is valid
+if (singularityBase === undefined || singularityBase === null) {
+    singularityBase = '/singularity';
+}
+
+var serverBaseUrl = formatUrl(host, port),
     hookPathPrefix = "/webhook",
     hookBaseUrl = serverBaseUrl + hookPathPrefix,
     singularityUrl = formatUrl(singularityHost, singularityPort, singularityBase);
