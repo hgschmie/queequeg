@@ -1,19 +1,28 @@
 var http = require('http'),
-    util = require('util'),
+    url = require('url'),
     express = require('express'),
     bodyParser = require('body-parser'),
     async = require('async'),
     Singularity = require('singularity-client');
 
+function formatUrl(hostname, port, pathname) {
+    return url.format({
+        protocol: "http",
+        hostname: hostname,
+        pathname: pathname,
+        port: port
+    });
+}
+
 var port = process.env.PORT || 3000,
     host = process.env.HOST || 'localhost',
-    serverBaseUrl = util.format("http://%s:%s", host, port),
+    singularityPort = process.env.SINGULARITY_PORT || 7099,
+    singularityHost = process.env.SINGULARITY_HOST || 'localhost',
+    singularityBase = process.env.SINGULARITY_BASE || '',
+    serverBaseUrl = formatUrl(host, port),
     hookPathPrefix = "/webhook",
     hookBaseUrl = serverBaseUrl + hookPathPrefix,
-    singularityPort = process.env.SINGULARITY_PORT || 7099,
-    singularityHost = process.env.SINGULARITY_HOST || host,
-    singularityBase = process.env.SINGULARITY_BASE || '/singularity',
-    singularityUrl = util.format("http://%s:%s%s", singularityHost, singularityPort, singularityBase);
+    singularityUrl = formatUrl(singularityHost, singularityPort, singularityBase);
 
 var singularity = new Singularity({
     singularity: {
