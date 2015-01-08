@@ -41,7 +41,7 @@ app.post(hookPathPrefix + '/:hook', function (req, res) {
     console.log('------------------------------------------------------------------------')
     console.log('-- Callback for %s', type);
     console.log('--');
-    console.log(JSON.stringify(JSON.parse(req.body), null, 2));
+    console.log(JSON.stringify(req.body, null, 2));
     console.log('------------------------------------------------------------------------');
 
     res.sendStatus(200);
