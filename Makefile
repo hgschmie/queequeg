@@ -3,7 +3,7 @@ HOST?=localhost
 PORT?=3000
 SINGULARITY_HOST?=localhost
 SINGULARITY_PORT?=7099
-SINGULARITY_BASE?=/singularity
+SINGULARITY_BASE?=''
 
 usage :
 	@echo ''
